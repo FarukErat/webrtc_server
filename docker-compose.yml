@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: always
     container_name: webrtc_signaling_server
     ports:
       - "8888:8080"
