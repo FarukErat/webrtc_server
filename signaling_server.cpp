@@ -1,5 +1,3 @@
-// File: signaling_server.cpp
-
 #include <iostream>
 #include <string>
 #include <boost/asio.hpp>
