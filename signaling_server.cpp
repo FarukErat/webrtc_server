@@ -1,6 +1,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <boost/bind/bind.hpp>
@@ -8,9 +9,64 @@
 
 using tcp = boost::asio::ip::tcp;
 namespace beast = boost::beast;
-namespace http = beast::http;
 namespace websocket = beast::websocket;
 using json = nlohmann::json;
+
+class ClientSession : public std::enable_shared_from_this<ClientSession> {
+public:
+    ClientSession(tcp::socket socket)
+        : ws_(std::move(socket)) {}
+
+    void start() {
+        auto client_endpoint = ws_.next_layer().remote_endpoint();
+        client_ip_ = client_endpoint.address().to_string();
+        client_port_ = client_endpoint.port();
+
+        std::cout << "New client connected: IP " << client_ip_
+                  << ", Port " << client_port_ << std::endl;
+
+        ws_.async_accept(boost::bind(&ClientSession::onAccept, shared_from_this(), boost::asio::placeholders::error));
+    }
+
+private:
+    websocket::stream<tcp::socket> ws_;
+    std::string client_ip_;
+    unsigned short client_port_;
+
+    void onAccept(const boost::system::error_code& ec) {
+        if (!ec) {
+            startRead();
+        } else {
+            std::cerr << "WebSocket handshake failed: " << ec.message() << std::endl;
+        }
+    }
+
+    void startRead() {
+        auto buffer = std::make_shared<beast::flat_buffer>();
+        ws_.async_read(*buffer,
+            boost::bind(&ClientSession::onRead, shared_from_this(), buffer,
+                boost::asio::placeholders::error,
+                boost::asio::placeholders::bytes_transferred));
+    }
+
+    void onRead(std::shared_ptr<beast::flat_buffer> buffer,
+                const boost::system::error_code& ec,
+                std::size_t bytes_transferred) {
+        if (!ec) {
+            std::string message = beast::buffers_to_string(buffer->data());
+            std::cout << "Received message from IP " << client_ip_
+                      << ", Port " << client_port_ << ": " << message << std::endl;
+
+            buffer->consume(buffer->size());
+            startRead();
+        } else if (ec == websocket::error::closed) {
+            std::cout << "Client disconnected: IP " << client_ip_
+                      << ", Port " << client_port_ << std::endl;
+        } else {
+            std::cerr << "Error during read: " << ec.message() << std::endl;
+        }
+    }
+};
 
 class SignalingServer {
 public:
@@ -25,83 +81,13 @@ private:
     void startAccept() {
         auto socket = std::make_shared<tcp::socket>(acceptor_.get_executor());
         acceptor_.async_accept(*socket,
-            boost::bind(&SignalingServer::onAccept, this, socket,
-                boost::asio::placeholders::error));
-    }
-
-    void onAccept(std::shared_ptr<tcp::socket> socket, const boost::system::error_code& ec) {
-        if (!ec) {
-            // Get client IP and port
-            auto client_endpoint = socket->remote_endpoint();
-            std::cout << "New client connected: IP " << client_endpoint.address()
-                      << ", Port " << client_endpoint.port() << std::endl;
-            startWebSocket(socket);
-        } else {
-            std::cerr << "Error accepting connection: " << ec.message() << std::endl;
-        }
-        startAccept();
-    }
-
-    void startWebSocket(std::shared_ptr<tcp::socket> socket) {
-        auto ws = std::make_shared<websocket::stream<tcp::socket>>(std::move(*socket));
-        boost::system::error_code ec;
-
-        ws->accept(ec);
-        if (ec) {
-            std::cerr << "WebSocket handshake failed: " << ec.message() << std::endl;
-            return;
-        }
-
-        startRead(ws);
-    }
-
-    void startRead(std::shared_ptr<websocket::stream<tcp::socket>> ws) {
-        auto buffer = std::make_shared<beast::flat_buffer>();
-        ws->async_read(*buffer,
-            boost::bind(&SignalingServer::onRead, this, ws, buffer,
-                boost::asio::placeholders::error,
-                boost::asio::placeholders::bytes_transferred));
-    }
-
-    void onRead(std::shared_ptr<websocket::stream<tcp::socket>> ws,
-                std::shared_ptr<beast::flat_buffer> buffer,
-                const boost::system::error_code& ec,
-                std::size_t bytes_transferred) {
-        if (!ec) {
-            std::string message = beast::buffers_to_string(buffer->data());
-
-            // Get client IP and port
-            auto client_endpoint = ws->next_layer().remote_endpoint();
-            std::cout << "Received message from IP " << client_endpoint.address()
-                      << ", Port " << client_endpoint.port() << ": " << message << std::endl;
-
-            processMessage(*ws, message);
-            buffer->consume(buffer->size());
-            startRead(ws);
-        } else {
-            std::cerr << "Client disconnected: " << ec.message() << std::endl;
-        }
-    }
-
-    void processMessage(websocket::stream<tcp::socket>& ws, const std::string& message) {
-        try {
-            json j = json::parse(message);
-            if (j.contains("type") && j["type"] == "offer") {
-                std::cout << "Processing offer..." << std::endl;
-                sendResponse(ws, "response_type", "response_data");
-            }
-        } catch (const json::parse_error& e) {
-            std::cerr << "JSON parse error: " << e.what() << std::endl;
-        }
-    }
-
-    void sendResponse(websocket::stream<tcp::socket>& ws, const std::string& type, const std::string& data) {
-        json response = {{"type", type}, {"data", data}};
-        ws.async_write(boost::asio::buffer(response.dump()),
-            [](boost::system::error_code ec, std::size_t) {
-                if (ec) {
-                    std::cerr << "Error sending response: " << ec.message() << std::endl;
+            [this, socket](const boost::system::error_code& ec) {
+                if (!ec) {
+                    std::make_shared<ClientSession>(std::move(*socket))->start();
+                } else {
+                    std::cerr << "Error accepting connection: " << ec.message() << std::endl;
                 }
+                startAccept();
             });
     }
 };
