@@ -100,9 +100,11 @@ private:
 };
 
 int main() {
+    const int port = 8080;
     try {
         boost::asio::io_context io_context;
-        SignalingServer server(io_context, 8080);
+        SignalingServer server(io_context, port);
+        std::cout << "Signaling server started on " << port << std::endl;
         io_context.run();
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
