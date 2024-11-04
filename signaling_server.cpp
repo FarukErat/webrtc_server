@@ -76,8 +76,11 @@ private:
 
     void processMessage(websocket::stream<tcp::socket>& ws, const std::string& message) {
         try {
+            std::cout << "Received message: " << message << std::endl;
+
             json j = json::parse(message);
             if (j.contains("type") && j["type"] == "offer") {
+                std::cout << "Processing offer..." << std::endl;
                 sendResponse(ws, "response_type", "response_data");
             }
         } catch (const json::parse_error& e) {
