@@ -78,7 +78,6 @@ private:
         try {
             json j = json::parse(message);
             if (j.contains("type") && j["type"] == "offer") {
-                // Process the offer message...
                 sendResponse(ws, "response_type", "response_data");
             }
         } catch (const json::parse_error& e) {
