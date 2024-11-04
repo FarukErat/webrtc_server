@@ -31,7 +31,10 @@ private:
 
     void onAccept(std::shared_ptr<tcp::socket> socket, const boost::system::error_code& ec) {
         if (!ec) {
-            std::cout << "New client connected!" << std::endl;
+            // Get client IP and port
+            auto client_endpoint = socket->remote_endpoint();
+            std::cout << "New client connected: IP " << client_endpoint.address()
+                      << ", Port " << client_endpoint.port() << std::endl;
             startWebSocket(socket);
         } else {
             std::cerr << "Error accepting connection: " << ec.message() << std::endl;
@@ -66,6 +69,12 @@ private:
                 std::size_t bytes_transferred) {
         if (!ec) {
             std::string message = beast::buffers_to_string(buffer->data());
+
+            // Get client IP and port
+            auto client_endpoint = ws->next_layer().remote_endpoint();
+            std::cout << "Received message from IP " << client_endpoint.address()
+                      << ", Port " << client_endpoint.port() << ": " << message << std::endl;
+
             processMessage(*ws, message);
             buffer->consume(buffer->size());
             startRead(ws);
@@ -76,8 +85,6 @@ private:
 
     void processMessage(websocket::stream<tcp::socket>& ws, const std::string& message) {
         try {
-            std::cout << "Received message: " << message << std::endl;
-
             json j = json::parse(message);
             if (j.contains("type") && j["type"] == "offer") {
                 std::cout << "Processing offer..." << std::endl;
