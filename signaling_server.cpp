@@ -42,7 +42,6 @@ private:
     void processMessage(std::shared_ptr<tcp::socket> socket, const std::string& message) {
         json j = json::parse(message);
         if (j.contains("type") && j["type"] == "offer") {
-            // Here you would handle the WebRTC offer, send it to the other peer, etc.
             std::cout << "Received offer: " << j.dump() << std::endl;
             sendResponse(socket, "answer", "This is a sample answer.");
         }
