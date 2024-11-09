@@ -93,7 +93,7 @@ private:
 };
 
 int main() {
-    const int port = 8765;
+    const int port = 8321;
     try {
         boost::asio::io_context io_context;
         SignalingServer server(io_context, port);

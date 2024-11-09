@@ -8,7 +8,7 @@ services:
     restart: always
     container_name: webrtc_signaling_server
     ports:
-      - "8765:8765"
+      - "8321:8321"
     networks:
       - app_network
     deploy:

@@ -13,6 +13,6 @@ COPY . .
 
 RUN g++ -std=c++17 -o main main.cpp -lboost_system -lpthread
 
-EXPOSE 8765
+EXPOSE 8321
 
 CMD ["./main"]
