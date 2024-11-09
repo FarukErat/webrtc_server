@@ -11,8 +11,8 @@ WORKDIR /app
 
 COPY . .
 
-RUN g++ -std=c++17 -o signaling_server signaling_server.cpp -lboost_system -lpthread
+RUN g++ -std=c++17 -o main main.cpp -lboost_system -lpthread
 
-EXPOSE 8080
+EXPOSE 8765
 
-CMD ["./signaling_server"]
+CMD ["./main"]
